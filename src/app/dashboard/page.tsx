@@ -16,6 +16,7 @@ interface JwtPayload {
 export default function DashboardPage() {
   const token = getToken();
   const [showFull, setShowFull] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   let username = "Guest";
   if (token) {
@@ -28,6 +29,15 @@ export default function DashboardPage() {
       console.error("Token decoding failed:", e);
     }
   }
+
+  const handleCopy = () => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard
+        .writeText(token || "")
+        .then(() => setCopied(true))
+        .catch((err) => console.error("Copy failed:", err));
+    }
+  };
 
   const cards = [
     { title: "Overview", desc: "Quick glance at your stats." },
@@ -66,10 +76,10 @@ export default function DashboardPage() {
               {showFull ? "Hide" : "Show full"}
             </button>
             <button
-              onClick={() => navigator.clipboard.writeText(token)}
-              className="text-xs px-2 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={handleCopy}
+              className="text-xs px-2 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white transition-transform duration-300 hover:scale-[1.05]"
             >
-              Copy
+              {copied ? "Copied!" : "Copy"}
             </button>
           </div>
           <motion.p
