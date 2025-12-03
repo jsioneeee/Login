@@ -61,7 +61,8 @@ export default function LandingPage() {
             >
               This is a modern, secure, and responsive dashboard built with
               Next.js. Manage your account, explore features, and stay connected
-              all in one place.
+              all in one place. Please be patient, logging-in/creating an
+              account may take a while.
             </motion.p>
 
             {/* Animated buttons */}
