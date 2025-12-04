@@ -1,146 +1,230 @@
 "use client";
 
-import { getToken } from "@/lib/auth";
-import { jwtDecode } from "jwt-decode";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
 
-interface JwtPayload {
-  sub: number;
-  username: string;
-  role: string;
-  exp: number;
-  iat: number;
+// 🔑 Replace with your actual Render backend URL
+const API_BASE = "https://final-test-r9wu.onrender.com";
+
+interface Position {
+  position_id?: number;
+  position_code: string;
+  position_name: string;
 }
 
 export default function DashboardPage() {
-  // Read token once (may be undefined on server)
-  const token = getToken();
-
-  const [showFull, setShowFull] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  // Hydration control + client username
-  const [hydrated, setHydrated] = useState(false);
-  const [username, setUsername] = useState("Guest");
-  const [hasToken, setHasToken] = useState(false);
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({ position_code: "", position_name: "" });
+  const [editID, setEditID] = useState<number | null>(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    setHydrated(true);
+    fetchPositions();
+  }, []);
 
-    // Only decode on client
-    if (token) {
-      setHasToken(true);
-      try {
-        const decoded = jwtDecode<JwtPayload>(token);
-        if (decoded.username) {
-          setUsername(decoded.username);
-        }
-      } catch (e) {
-        console.error("Token decoding failed:", e);
+  async function fetchPositions() {
+    try {
+      const res = await fetch(`${API_BASE}/positions`);
+      if (!res.ok) throw new Error("Failed to fetch positions");
+      const data = await res.json();
+      setPositions(data);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function addPosition() {
+    setError("");
+    try {
+      const res = await fetch(`${API_BASE}/positions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to add new position");
       }
-    } else {
-      setHasToken(false);
-    }
-  }, [token]);
 
-  const handleCopy = () => {
-    if (typeof navigator !== "undefined" && navigator.clipboard) {
-      navigator.clipboard
-        .writeText(token || "")
-        .then(() => setCopied(true))
-        .catch((err) => console.error("Copy failed:", err));
+      setForm({ position_code: "", position_name: "" });
+      fetchPositions();
+    } catch (err: any) {
+      setError(err.message);
     }
-  };
+  }
 
-  const cards = [
-    { title: "Overview", desc: "Quick glance at your stats." },
-    { title: "Reports", desc: "Detailed insights and analytics." },
-    { title: "Settings", desc: "Manage your preferences." },
-  ];
+  async function saveEditedPos() {
+    if (!editID) return alert("No item selected");
+    setError("");
+    try {
+      const res = await fetch(`${API_BASE}/positions/${editID}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to update");
+      }
+
+      setEditID(null);
+      setForm({ position_code: "", position_name: "" });
+      fetchPositions();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  }
+
+  async function deletePos(id: number) {
+    if (!confirm("Are you sure?")) return;
+    setError("");
+    try {
+      const res = await fetch(`${API_BASE}/positions/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Delete failed");
+      }
+      fetchPositions();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  }
+
+  function handleEdit(item: Position) {
+    setEditID(item.position_id!);
+    setForm({
+      position_code: item.position_code,
+      position_name: item.position_name,
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function handleCancel() {
+    setEditID(null);
+    setForm({ position_code: "", position_name: "" });
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-neutral-900 p-6">
-      {/* Animated Title — only after hydration */}
-      {hydrated && (
+      {/* Header */}
+      <div className="flex justify-between items-center mb-6">
         <motion.h1
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          className="text-3xl font-bold mb-8 text-blue-600 dark:text-blue-400"
-          suppressHydrationWarning
+          className="text-3xl font-bold text-blue-600 dark:text-blue-400"
         >
-          Welcome, {username}
+          Positions Dashboard
         </motion.h1>
-      )}
-
-      {/* Bearer Token Section — only after hydration to keep tree stable */}
-      {hydrated && hasToken && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5 }}
-          className="mb-8 p-4 rounded-lg bg-white dark:bg-neutral-800 shadow-md border border-neutral-200 dark:border-neutral-700"
-        >
-          <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
-            Your Bearer Token:
-          </p>
-          <div className="flex items-center gap-3 mb-2 flex-wrap">
-            <button
-              onClick={() => setShowFull(!showFull)}
-              className="text-xs px-2 py-1 rounded bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-blue-600"
-            >
-              {showFull ? "Hide" : "Show full"}
-            </button>
-            <button
-              onClick={handleCopy}
-              className="text-xs px-2 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white transition-transform duration-300 hover:scale-[1.05]"
-            >
-              {copied ? "Copied!" : "Copy"}
-            </button>
-          </div>
-          <motion.p
-            key={showFull ? "full" : "short"}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
-            className="bg-gray-100 text-neutral-800 dark:bg-gray-700 dark:text-neutral-200 p-3 rounded break-words text-xs w-full max-w-full"
-          >
-            {showFull ? token : `${token!.slice(0, 40)}...`}
-          </motion.p>
-        </motion.div>
-      )}
-
-      {/* Animated Cards — unchanged */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {cards.map((card, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, delay: i * 0.1 }}
-            whileHover={{ scale: 1.05, y: -4 }}
-            className="p-6 rounded-lg bg-white dark:bg-neutral-800 shadow-md border border-neutral-200 dark:border-neutral-700 cursor-pointer"
-          >
-            <h2 className="text-xl font-semibold mb-2 dark:text-white">
-              {card.title}
-            </h2>
-            <p className="text-neutral-600 dark:text-neutral-400">
-              {card.desc}
-            </p>
-          </motion.div>
-        ))}
+        <div className="flex gap-2">
+          <Button onClick={fetchPositions}>Refresh</Button>
+          <Button variant="destructive">Logout</Button>
+        </div>
       </div>
 
-      {/* Footer — unchanged */}
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1 }}
-        className="mt-10 text-neutral-500 dark:text-neutral-400 text-center"
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-100 text-red-700 p-3 rounded mb-4 shadow">
+          {error}
+        </div>
+      )}
+
+      {/* Create/Edit Form */}
+      <Card className="p-5 shadow mb-8">
+        <CardContent>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              editID ? saveEditedPos() : addPosition();
+            }}
+          >
+            <div className="flex gap-4 flex-wrap">
+              <Input
+                placeholder="Position Code"
+                value={form.position_code}
+                onChange={(e) =>
+                  setForm({ ...form, position_code: e.target.value })
+                }
+              />
+              <Input
+                placeholder="Position Name"
+                value={form.position_name}
+                onChange={(e) =>
+                  setForm({ ...form, position_name: e.target.value })
+                }
+              />
+              <Button type="submit" className="bg-blue-600">
+                {editID ? "Update" : "Create"}
+              </Button>
+              {editID && (
+                <Button variant="destructive" onClick={handleCancel}>
+                  Cancel
+                </Button>
+              )}
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* Table */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5 }}
       >
-        I will add more soon hehehehe…
-      </motion.p>
+        <h3 className="font-bold text-xl mb-4">
+          Positions List {loading && "(loading...)"}:
+        </h3>
+
+        <table className="w-full text-left shadow-md">
+          <thead className="bg-gray-200">
+            <tr>
+              <th className="p-2">ID</th>
+              <th className="p-2">Code</th>
+              <th className="p-2">Name</th>
+              <th className="p-2 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {positions.length === 0 && !loading ? (
+              <tr>
+                <td colSpan={4} className="text-center p-4">
+                  No positions found.
+                </td>
+              </tr>
+            ) : (
+              positions.map((pos) => (
+                <tr key={pos.position_id}>
+                  <td className="p-2">{pos.position_id}</td>
+                  <td className="p-2">{pos.position_code}</td>
+                  <td className="p-2">{pos.position_name}</td>
+                  <td className="p-2 text-right">
+                    <Button className="mr-2" onClick={() => handleEdit(pos)}>
+                      Edit
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={() => deletePos(pos.position_id!)}
+                    >
+                      Delete
+                    </Button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </motion.div>
     </div>
   );
 }
