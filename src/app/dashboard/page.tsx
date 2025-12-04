@@ -2,7 +2,7 @@
 
 import { getToken } from "@/lib/auth";
 import { jwtDecode } from "jwt-decode";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 
 interface JwtPayload {
@@ -14,21 +14,35 @@ interface JwtPayload {
 }
 
 export default function DashboardPage() {
+  // Read token once (may be undefined on server)
   const token = getToken();
+
   const [showFull, setShowFull] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  let username = "Guest";
-  if (token) {
-    try {
-      const decoded = jwtDecode<JwtPayload>(token);
-      if (decoded.username) {
-        username = decoded.username;
+  // Hydration control + client username
+  const [hydrated, setHydrated] = useState(false);
+  const [username, setUsername] = useState("Guest");
+  const [hasToken, setHasToken] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+
+    // Only decode on client
+    if (token) {
+      setHasToken(true);
+      try {
+        const decoded = jwtDecode<JwtPayload>(token);
+        if (decoded.username) {
+          setUsername(decoded.username);
+        }
+      } catch (e) {
+        console.error("Token decoding failed:", e);
       }
-    } catch (e) {
-      console.error("Token decoding failed:", e);
+    } else {
+      setHasToken(false);
     }
-  }
+  }, [token]);
 
   const handleCopy = () => {
     if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -47,18 +61,21 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-neutral-900 p-6">
-      {/* Animated Title */}
-      <motion.h1
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="text-3xl font-bold mb-8 text-blue-600 dark:text-blue-400"
-      >
-        Welcome, {username}
-      </motion.h1>
+      {/* Animated Title — only after hydration */}
+      {hydrated && (
+        <motion.h1
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="text-3xl font-bold mb-8 text-blue-600 dark:text-blue-400"
+          suppressHydrationWarning
+        >
+          Welcome, {username}
+        </motion.h1>
+      )}
 
-      {/* Bearer Token Section */}
-      {token && (
+      {/* Bearer Token Section — only after hydration to keep tree stable */}
+      {hydrated && hasToken && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -89,12 +106,12 @@ export default function DashboardPage() {
             transition={{ duration: 0.3 }}
             className="bg-gray-100 text-neutral-800 dark:bg-gray-700 dark:text-neutral-200 p-3 rounded break-words text-xs w-full max-w-full"
           >
-            {showFull ? token : `${token.slice(0, 40)}...`}
+            {showFull ? token : `${token!.slice(0, 40)}...`}
           </motion.p>
         </motion.div>
       )}
 
-      {/* Animated Cards */}
+      {/* Animated Cards — unchanged */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {cards.map((card, i) => (
           <motion.div
@@ -115,7 +132,7 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Footer */}
+      {/* Footer — unchanged */}
       <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
